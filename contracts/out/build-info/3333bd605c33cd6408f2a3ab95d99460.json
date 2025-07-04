@@ -1,0 +1,1 @@
+{"id":"3333bd605c33cd6408f2a3ab95d99460","source_id_to_path":{"0":"lib/openzeppelin-contracts-08/contracts/proxy/Proxy.sol","1":"lib/openzeppelin-contracts-08/contracts/utils/Address.sol","2":"src/answers/DirectExploit.sol","3":"src/helpers/UpgradeableProxy-08.sol","4":"src/levels/PuzzleWallet.sol"},"language":"Solidity"}

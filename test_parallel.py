@@ -15,13 +15,14 @@ from pathlib import Path
 import agent
 
 from analysis import analyze_best_of_n_for_rl
-from rl_analysis_updated import run_analysis as run_rl_analysis
-from rl_advanced_analysis_updated import (
+from rl_analysis import run_analysis as run_rl_analysis
+from rl_advanced_analysis import (
     run_advanced_analysis as run_rl_advanced_analysis,
 )
+
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import threading
-from typing import Dict, List, Tuple
+from typing import Dict, Tuple
 
 load_dotenv()
 weave.init("smart-contract-auditor")
@@ -33,7 +34,6 @@ def wait_for_server(port, url="http://localhost", timeout=30):
     start_time = time.time()
     while time.time() - start_time < timeout:
         try:
-            # Use /level-context endpoint instead of root
             response = requests.get(f"{url}:{port}/level-context")
             if response.status_code == 200:
                 print(f"✅ Server is ready on port {port}!")
@@ -69,7 +69,6 @@ def test_single_level(task_id, level_info, provider, model, port, run_id=0):
         if not wait_for_server(port):
             return {"task_id": task_id, "error": "Server is not up."}
 
-        # Add try-except around agent.run to catch any errors
         try:
             print(f"[Port {port}] Calling agent.run...")
             start_time = time.time()
@@ -92,7 +91,7 @@ def test_single_level(task_id, level_info, provider, model, port, run_id=0):
                     "iterations": metrics["total_iterations"],
                     "conversation_length": metrics["conversation_length"],
                     "errors": metrics.get("errors", []),
-                    "messages": messages,  # Optional: can be large
+                    "messages": messages,
                 }
             else:
                 print(f"[Port {port}] Level {task_id} FAILED...")
@@ -107,7 +106,7 @@ def test_single_level(task_id, level_info, provider, model, port, run_id=0):
                     "iterations": metrics["total_iterations"],
                     "conversation_length": metrics["conversation_length"],
                     "errors": metrics.get("errors", []),
-                    "messages": messages,  # Optional: can be large
+                    "messages": messages,
                 }
 
         except Exception as e:
@@ -123,7 +122,6 @@ def test_single_level(task_id, level_info, provider, model, port, run_id=0):
     finally:
         print(f"[Port {port}] Entering finally block...")
         if handler_process:
-            # Check if process is still alive
             if handler_process.poll() is None:
                 print(f"[Port {port}] Handler still running, terminating...")
                 handler_process.terminate()
@@ -243,10 +241,8 @@ def test_all_ethernaut_n_runs_parallel(
 
     info = info[start_level : end_level + 1]
 
-    # Initialize port manager
     port_manager = PortManager()
 
-    # Prepare tasks for parallel execution
     tasks = []
     for i, level_info in enumerate(info):
         task_id = start_level + i
@@ -261,14 +257,12 @@ def test_all_ethernaut_n_runs_parallel(
         f"\nStarting parallel execution with {max_workers} workers for {total_tasks} levels..."
     )
 
-    # Execute tasks in parallel
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        # Submit all tasks
+
         future_to_task = {
             executor.submit(run_level_n_times_wrapper, task): task for task in tasks
         }
 
-        # Process completed tasks
         for future in as_completed(future_to_task):
             task = future_to_task[future]
             task_id, _, _, _, port, _ = task
@@ -282,11 +276,9 @@ def test_all_ethernaut_n_runs_parallel(
                     f"\n✅ Completed level {task_id} ({completed_tasks}/{total_tasks})"
                 )
 
-                # Save intermediate results
                 metrics_dir = results_folder / "metrics"
                 metrics_dir.mkdir(parents=True, exist_ok=True)
 
-                # Sort results by task_id before saving
                 sorted_results = sorted(all_results, key=lambda x: x["task_id"])
                 with open(metrics_dir / f"checkpoint_{completed_tasks}.json", "w") as f:
                     json.dump(sorted_results, f, indent=2)
@@ -297,13 +289,11 @@ def test_all_ethernaut_n_runs_parallel(
                     {"task_id": task_id, "error": str(exc), "success_rate": 0}
                 )
             finally:
-                # Release the port
+
                 port_manager.release_port(port)
 
-    # Sort results by task_id
     all_results = sorted(all_results, key=lambda x: x["task_id"])
 
-    # Calculate overall statistics
     overall_stats = {
         "provider": provider,
         "model": model,
@@ -342,7 +332,7 @@ def analyze_best_of_n(benchmark_results, n_values=[1, 3, 5]):
         level_success_rates = []
 
         for level_result in benchmark_results["detailed_results"]:
-            # Calculate probability of at least one success in N attempts
+
             failure_rate = 1 - level_result.get("success_rate", 0)
             best_of_n_success_rate = 1 - (failure_rate**n)
             level_success_rates.append(best_of_n_success_rate)
@@ -363,19 +353,19 @@ def get_port(low: int = 15000, high: int = 65000, tries: int = 100) -> int:
         with contextlib.closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
             try:
                 s.bind(("127.0.0.1", port))
-                # binding succeeded → port free
+
                 return port
             except OSError as e:
                 if e.errno != errno.EADDRINUSE:
-                    # unexpected error, re-raise
+
                     raise
-                # otherwise, loop and try another port
+
     raise RuntimeError(f"No free port found after {tries} attempts")
 
 
 if __name__ == "__main__":
     """
-    Parallel version of test.py that runs multiple levels concurrently
+    parallel version of test.py that runs multiple levels concurrently
     """
     parser = argparse.ArgumentParser(description="LLM agent parallel testing")
     parser.add_argument(
@@ -403,7 +393,6 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # Set the task ID for the agent
     provider = args.provider
     model = args.model
     n_runs = args.n_runs
@@ -432,11 +421,9 @@ if __name__ == "__main__":
     )
     total_time = time.time() - start_time
 
-    # Save comprehensive results
     with open(results_folder / "benchmark.json", "w") as f:
         json.dump(results, f, indent=2)
 
-    # Print summary
     print(f"\n{'='*60}")
     print("BENCHMARK COMPLETE")
     print(f"{'='*60}")
@@ -453,13 +440,11 @@ if __name__ == "__main__":
     print(f"\nDetailed results saved to: {results_folder}")
 
     analysis = analyze_best_of_n_for_rl(results)
-    # Save comprehensive results
+
     with open(results_folder / "analysis.json", "w") as f:
         json.dump(analysis, f, indent=2)
 
-    # Run RL analyses
     print("\nRunning RL analysis...")
     run_rl_analysis(str(results_folder / "benchmark.json"))
-
-    print("\nRunning advanced RL analysis...")
     run_rl_advanced_analysis(str(results_folder / "benchmark.json"))
+    # todo: add fix rl_difficulty_analysis.py path issues to call here

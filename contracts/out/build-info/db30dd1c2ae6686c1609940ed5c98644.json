@@ -1,0 +1,1 @@
+{"id":"db30dd1c2ae6686c1609940ed5c98644","source_id_to_path":{"0":"lib/openzeppelin-contracts-08/contracts/access/Ownable.sol","1":"lib/openzeppelin-contracts-08/contracts/utils/Context.sol","2":"src/levels/Delegation.sol","3":"src/levels/DelegationFactory.sol","4":"src/levels/base/Level.sol"},"language":"Solidity"}

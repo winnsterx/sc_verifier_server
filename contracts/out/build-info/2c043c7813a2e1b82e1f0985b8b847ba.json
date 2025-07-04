@@ -1,0 +1,1 @@
+{"id":"2c043c7813a2e1b82e1f0985b8b847ba","source_id_to_path":{"0":"lib/openzeppelin-contracts-08/contracts/access/Ownable.sol","1":"lib/openzeppelin-contracts-08/contracts/utils/Context.sol","2":"src/answers/ImpersonatorSolver.sol","3":"src/levels/Impersonator.sol"},"language":"Solidity"}
