@@ -55,7 +55,7 @@ COMMON PATTERNS:
         "params": {
             "contract_file": "ReentrancyAttacker.sol",
             "contract_name": "ReentrancyAttacker",
-            "contract_address": "$ATTACKER_0",  # First deployed contract
+            "contract_address": "$ATTACKER_0",  
             "function_name": "attack",
             "function_args": [],
             "value_wei": 1000000000000000
@@ -250,14 +250,12 @@ def handle_tool_calls(tool_calls, context, port):
         try:
             function_name = tool_call.function.name
 
-            # Handle Claude Opus passing empty strings instead of empty JSON objects
             args_str = tool_call.function.arguments
             if args_str == "" or args_str is None:
                 function_args = {}
             else:
                 function_args = json.loads(args_str)
 
-            # Replace special variables with actual values
             function_args_str = json.dumps(function_args)
             function_args_str = function_args_str.replace(
                 "$INSTANCE", context.get("instance_address", "")
@@ -269,7 +267,6 @@ def handle_tool_calls(tool_calls, context, port):
                 "$FACTORY", context.get("factory_address", "")
             )
 
-            # Replace attacker contract addresses
             for i, addr in enumerate(context.get("deployed_contracts", [])):
                 function_args_str = function_args_str.replace(f"$ATTACKER_{i}", addr)
 
@@ -279,14 +276,13 @@ def handle_tool_calls(tool_calls, context, port):
                 result = requests.post(
                     f"http://127.0.0.1:{port}/deploy", json=function_args
                 ).json()
-                # Track deployed contracts
+
                 if result.get("success") and result.get("contract_address"):
                     context.setdefault("deployed_contracts", []).append(
                         result["contract_address"]
                     )
 
             elif function_name == "call":
-                # Ensure default values for optional parameters
                 if "function_args" not in function_args:
                     function_args["function_args"] = []
                 if "is_view" not in function_args:
@@ -308,7 +304,7 @@ def handle_tool_calls(tool_calls, context, port):
 
             elif function_name == "get_level_context":
                 result = requests.get(f"http://127.0.0.1:{port}/level-context").json()
-                # Update context with level information
+
                 if "instance_address" in result:
                     context["instance_address"] = result["instance_address"]
                 if "deployer_address" in result:
@@ -363,10 +359,8 @@ def run(provider, model, port):
             API_KEY = os.getenv("ANTHROPIC_API_KEY")
             client = OpenAI(api_key=API_KEY)
 
-        # Initialize context to track state
         context = {"deployed_contracts": []}
 
-        # Initialize conversation with system prompt
         messages = [
             {"role": "system", "content": LLM_SYSTEM_PROMPT},
             {
@@ -375,7 +369,7 @@ def run(provider, model, port):
             },
         ]
 
-        max_iterations = 30  # Prevent infinite loops
+        max_iterations = 30
         iteration = 0
 
         while iteration < max_iterations:
@@ -384,10 +378,8 @@ def run(provider, model, port):
                 metrics["total_iterations"] = iteration
 
                 print(f"\n--- Iteration {iteration} ---")
-                # Get completion from OpenAI
                 print(f"Messages so far: {len(messages)}")
 
-                # Get completion from OpenAI
                 completion = client.chat.completions.create(
                     model=model, messages=messages, tools=tools, tool_choice="auto"
                 )
@@ -395,7 +387,6 @@ def run(provider, model, port):
                 response_message = completion.choices[0].message
                 messages.append(response_message.model_dump())
 
-                # Print assistant's response
                 if response_message.content:
                     print(f"Assistant: {response_message.content}")
 
@@ -423,7 +414,6 @@ def run(provider, model, port):
                             response_message.tool_calls, context, port
                         )
 
-                        # Add tool responses to conversation
                         for tool_response in tool_responses:
                             messages.append(
                                 {
@@ -433,14 +423,12 @@ def run(provider, model, port):
                                 }
                             )
 
-                            # Print tool response
                             result = json.loads(tool_response["output"])
                             print("Getting toolcall response:", result)
 
-                            # Check if level is solved
                             if "solved" in result and result["solved"] == True:
                                 metrics["conversation_length"] = len(messages)
-                                print("\n🎆🎆🎆🎆🎆 LEVEL SOLVED! 🎆🎆🎆🎆🎆")
+                                print("\n🎆🎆🎆🎆🎆 LEVEL SOLVED YAYYYYYYY! 🎆🎆🎆🎆🎆")
                                 return True, messages, metrics
                     except Exception as tool_error:
                         print(f"Error handling tool call--{tool_call} {tool_error}")
@@ -450,7 +438,6 @@ def run(provider, model, port):
 
                         continue
                 else:
-                    # No tool calls, conversation might be ending
                     print("No tool calls requested.")
                     break
 
@@ -480,7 +467,6 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, help="Port that PoCHandler is running on")
     args = parser.parse_args()
 
-    # Set the task ID for the agent
     provider = args.provider
     model = args.model
     port = args.port

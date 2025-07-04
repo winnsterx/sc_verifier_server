@@ -1,0 +1,1 @@
+pragma solidity ^0.8.0; contract LibrarySetter { function setTime(uint _time) public { assembly { sstore(0, _time) } } }

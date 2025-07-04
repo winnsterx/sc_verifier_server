@@ -27,10 +27,11 @@ load_dotenv()
 CONFIG = {
     "ANVIL_HARDFORK": "shanghai",
     "DEPLOYER_PRIVATE_KEY": os.environ.get("DEPLOYER_PRIVATE_KEY", ""),
-    "CONTRACTS_ROOT": Path(os.environ.get("CONTRACTS_ROOT", "./contracts")).absolute(),
+    "ETHERNAUT_ROOT": Path(os.environ.get("ETHERNAUT_ROOT", "./contracts")).absolute(),
 }
 
 TASK_ID = None
+TASK_SOURCE = None
 ANVIL = None
 W3 = None
 DEPLOYER = None
@@ -69,17 +70,17 @@ async def lifespan(app: FastAPI):
 
 
 async def setup_level():
-    global W3, DEPLOYER, LEVEL_INFO
+    global W3, DEPLOYER, LEVEL_INFO, TASK_SOURCE
 
-    gamedata_path = CONFIG["CONTRACTS_ROOT"] / "gamedata.json"
+    gamedata_path = CONFIG["ETHERNAUT_ROOT"] / "gamedata.json"
     with open(gamedata_path) as f:
         LEVEL_INFO = json.load(f)["levels"][TASK_ID]
 
     factory_path = (
-        CONFIG["CONTRACTS_ROOT"] / "src" / "levels" / LEVEL_INFO["levelContract"]
+        CONFIG["ETHERNAUT_ROOT"] / "src" / "levels" / LEVEL_INFO["levelContract"]
     )
     instance_path = (
-        CONFIG["CONTRACTS_ROOT"] / "src" / "levels" / LEVEL_INFO["instanceContract"]
+        CONFIG["ETHERNAUT_ROOT"] / "src" / "levels" / LEVEL_INFO["instanceContract"]
     )
 
     factory_address, instance_address = await deploy_level(factory_path, instance_path)
@@ -87,7 +88,6 @@ async def setup_level():
     with open(instance_path) as instance_file:
         instance_source_code = instance_file.read()
 
-    # Update level info
     LEVEL_INFO.update(
         {
             "factoryAddress": factory_address,
@@ -108,7 +108,7 @@ async def deploy_level(factory_path: Path, instance_path: Path):
     DEPLOYER.sync_nonce(W3)
     factory_contract, tx_hash = deploy_contract_with_forge(
         web3=W3,
-        project_folder=CONFIG["CONTRACTS_ROOT"],
+        project_folder=CONFIG["ETHERNAUT_ROOT"],
         contract_file=f"levels/{factory_path.name}",  # relative to project_root
         contract_name=factory_path.stem,
         deployer=DEPLOYER,
@@ -153,7 +153,7 @@ async def deploy_level(factory_path: Path, instance_path: Path):
 
 
 def get_receipt_data(receipt):
-    global W3  # Add this
+    global W3
     receipt_data = {
         "transactionHash": (
             receipt.transactionHash.hex()
@@ -164,17 +164,15 @@ def get_receipt_data(receipt):
         "gasUsed": int(receipt.gasUsed),
         "status": int(receipt.status),
         "contractAddress": receipt.contractAddress,
-        "from": W3.to_checksum_address(receipt["from"]),  # Convert to checksum
-        "to": (
-            W3.to_checksum_address(receipt.to) if receipt.to else None
-        ),  # Convert to checksum
+        "from": W3.to_checksum_address(receipt["from"]),
+        "to": (W3.to_checksum_address(receipt.to) if receipt.to else None),
     }
-    # Make sure logs are also properly encoded
+
     if hasattr(receipt, "logs"):
         receipt_data["logs"] = []
         for log in receipt.logs:
             log_data = {
-                "address": W3.to_checksum_address(log.address),  # Convert to checksum
+                "address": W3.to_checksum_address(log.address),
                 "topics": [
                     topic.hex() if hasattr(topic, "hex") else str(topic)
                     for topic in log.topics
@@ -233,13 +231,13 @@ def deploy_contract(request: DeployRequest):
     except Exception as e:
         return {"error": f"Failed to write {contract_file} to {contract_path}: e"}
 
-    contracts_root = Path(os.environ.get("CONTRACTS_ROOT", "./contracts"))
+    ETHERNAUT_ROOT = Path(os.environ.get("ETHERNAUT_ROOT", "./contracts"))
 
     try:
         DEPLOYER.sync_nonce(W3)
         contract, tx_hash = deploy_contract_with_forge(
             web3=W3,
-            project_folder=SCRIPT_DIR / contracts_root,
+            project_folder=SCRIPT_DIR / ETHERNAUT_ROOT,
             contract_file=f"answers/{contract_file}",
             contract_name=contract_name,
             deployer=DEPLOYER,
@@ -250,7 +248,7 @@ def deploy_contract(request: DeployRequest):
         print(
             f"{request.contract_name} deployed with tx_hash {tx_hash.hex()}, with contract: {contract.address}"
         )
-        # Get deployment receipt for more info
+
         receipt = W3.eth.get_transaction_receipt(tx_hash)
 
         print(f"✅ {contract_name} deployed at {contract.address}")
@@ -259,9 +257,7 @@ def deploy_contract(request: DeployRequest):
         return {
             "success": True,
             "contract_name": contract_name,
-            "contract_address": W3.to_checksum_address(
-                contract.address
-            ),  # Ensure checksum
+            "contract_address": W3.to_checksum_address(contract.address),
             "tx_hash": tx_hash.hex() if isinstance(tx_hash, bytes) else str(tx_hash),
             "gas_used": int(receipt.gasUsed) if receipt.gasUsed else None,
             "block_number": int(receipt.blockNumber) if receipt.blockNumber else None,
@@ -281,23 +277,19 @@ def process_args(function_args):
 
     for arg in function_args:
         if isinstance(arg, str):
-            # Check if it's an Ethereum address (0x followed by 40 hex chars)
-            # Handle both lowercase and checksum addresses
             if (arg.startswith("0x") or arg.startswith("0X")) and len(arg) == 42:
                 try:
-                    # Always convert to checksum address for consistency
                     processed_args.append(W3.to_checksum_address(arg))
                 except ValueError:
-                    # Not a valid address, keep as string
                     processed_args.append(arg)
-            # Only convert plain numeric strings (not hex)
+
             elif arg.isdigit():
                 try:
                     processed_args.append(int(arg))
                 except ValueError:
                     processed_args.append(arg)
             else:
-                # Keep all other strings as-is
+
                 processed_args.append(arg)
         else:
             processed_args.append(arg)
@@ -417,7 +409,6 @@ def send_eth(request: SendEthRequest):
 
         DEPLOYER.sync_nonce(W3)
 
-        # Don't use .lower() on the address - this might break checksum
         checksum_address = W3.to_checksum_address(request.to_address)
 
         balance = W3.eth.get_balance(DEPLOYER.address)
@@ -577,7 +568,6 @@ def read_storage(request: ReadStorageRequest):
 
         checksum_address = W3.to_checksum_address(normalized_address)
 
-        # Read storage at the specified slot
         storage_value_bytes = W3.eth.get_storage_at(checksum_address, slot)
         storage_value = storage_value_bytes.hex()
         bytes32_value = "0x" + storage_value[2:].zfill(64)
@@ -609,8 +599,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="PoCHandler Server")
     parser.add_argument("--task_id", type=int, default=3, help="Task ID of victim")
     parser.add_argument("--port", type=int, help="Port")
+    parser.add_argument("--source", type=str, default="ethernaut", help="Task source")
+
     args = parser.parse_args()
     TASK_ID = args.task_id
+    TASK_SOURCE = args.port
     port = args.port
 
     uvicorn.run(app, port=port)

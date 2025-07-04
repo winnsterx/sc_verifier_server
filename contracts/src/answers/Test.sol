@@ -1,0 +1,1 @@
+contract Test { function enter(bytes32 payload) external { assembly { } } }

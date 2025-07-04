@@ -15,5 +15,5 @@ wheels/
 
 .env
 
-dataset/
-contracts/
+# dataset/
+# contracts/
